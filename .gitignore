@@ -1,0 +1,19 @@
+# Firebase
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.firebaserc.local
+
+# Secrets — NOOIT committen
+serviceAccountKey.json
+*.pem
+.env
+.env.*
+
+# Dependencies
+functions/node_modules/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

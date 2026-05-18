@@ -1,0 +1,56 @@
+name: Tag & Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # nodig voor het aanmaken van tags
+
+jobs:
+  tag-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Code ophalen (volledige history voor tag-detectie) ──────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── 2. Automatische semver-tag (patch bump: v1.0.0 → v1.0.1) ──────────
+      - name: Bump version en push tag
+        id: tag
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: patch
+          tag_prefix: v
+
+      # ── 3. Node.js installeren ─────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: functions/package.json
+
+      # ── 4. Dependencies installeren ────────────────────────────────────────
+      - name: Installeer dependencies
+        run: npm ci
+        working-directory: functions
+
+      # ── 5. Deployen naar Firebase Cloud Functions ─────────────────────────
+      - name: Deploy naar Firebase
+        uses: w9jds/firebase-action@v14.0.0
+        with:
+          args: deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        env:
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      # ── 6. Samenvatting in de GitHub Actions-log ──────────────────────────
+      - name: Deploy samenvatting
+        run: |
+          echo "### Succesvol gedeployd" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag:** ${{ steps.tag.outputs.new_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **CDN-URL:** https://cdn.jsdelivr.net/gh/daneelsjo/feedback-widget@${{ steps.tag.outputs.new_tag }}/widget.js" >> $GITHUB_STEP_SUMMARY

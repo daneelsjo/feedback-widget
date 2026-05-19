@@ -29,36 +29,15 @@ function getKanbanDb() {
   return _kanbanApp.firestore();
 }
 
-// ─── Body parser: werkt in alle Cloud Run scenario's ─────────────────────────
-// Firebase v2 buffert de body op drie mogelijke plaatsen — we proberen alle drie.
-async function parseJsonBody(req) {
-  // 1. Al geparsd door het framework
-  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) && Object.keys(req.body).length > 0) {
-    return req.body;
-  }
-  // 2. rawBody buffer (Firebase v1-stijl, soms aanwezig in v2)
-  const raw = req.rawBody;
-  if (raw && raw.length > 0) {
-    return JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
-  }
-  // 3. Lees rechtstreeks van de request-stream
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
-    req.on('end', () => {
-      const text = Buffer.concat(chunks).toString('utf8');
-      try { resolve(JSON.parse(text)); }
-      catch (e) { reject(new Error('Ongeldige JSON in request body')); }
-    });
-    req.on('error', reject);
-  });
-}
-
 // ─── Express-app ─────────────────────────────────────────────────────────────
 const app = express();
 
 app.use(cors({ origin: '*', methods: ['POST', 'OPTIONS'] }));
 app.options('*', cors());
+
+// express.raw() legt de body vast als Buffer vóór Cloud Run de stream kan consumeren.
+// type '*/*' zorgt dat het voor elke Content-Type werkt.
+app.use(express.raw({ type: '*/*', limit: '20mb' }));
 
 // ─── Type → typeId mapping ────────────────────────────────────────────────────
 const TYPE_IDS = {
@@ -101,10 +80,16 @@ async function uploadBase64ToStorage(attachment) {
 
 // ─── Route: POST / ────────────────────────────────────────────────────────────
 app.post('/', async (req, res) => {
-  // Body parsen
+  // Body parsen — req.body is een Buffer (van express.raw) of al een object
   let body;
   try {
-    body = await parseJsonBody(req);
+    if (Buffer.isBuffer(req.body) && req.body.length > 0) {
+      body = JSON.parse(req.body.toString('utf8'));
+    } else if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
+      body = req.body;
+    } else {
+      throw new Error('Lege body ontvangen');
+    }
   } catch (e) {
     console.error('[feedbackApi] Body parse error:', e.message);
     return res.status(400).json({ message: 'Ongeldige request body.' });

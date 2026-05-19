@@ -9,21 +9,30 @@ const multer = require('multer');
 const path   = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+// ─── Secrets ─────────────────────────────────────────────────────────────────
+const validApiKeysSecret = defineSecret('VALID_API_KEYS');
+const priveJoSaKeySecret  = defineSecret('PRIVE_JO_SA_KEY');
+
 // ─── Firebase initialisatie ───────────────────────────────────────────────────
 // Standaard app: feedback-widget-f0087 → Storage (bijlagen)
 admin.initializeApp();
 
-// Tweede app: prive-jo → Firestore (Kanban-tickets)
-// De service account van feedback-widget-f0087 moet in prive-jo de rol
-// "Cloud Datastore User" hebben (zie IMPLEMENTATIE.md voor instructies).
-const kanbanApp = admin.initializeApp({ projectId: 'prive-jo' }, 'kanban');
-
-const db     = kanbanApp.firestore();
 const bucket = admin.storage().bucket();
 
-// ─── Secret: komma-gescheiden lijst van geldige API-sleutels ─────────────────
-// Stel in via: firebase functions:secrets:set VALID_API_KEYS
-const validApiKeysSecret = defineSecret('VALID_API_KEYS');
+// Kanban-app (prive-jo) wordt lazy geïnitialiseerd per request,
+// zodra het PRIVE_JO_SA_KEY secret beschikbaar is.
+let _kanbanApp = null;
+
+function getKanbanDb() {
+  if (!_kanbanApp) {
+    const serviceAccount = JSON.parse(process.env.PRIVE_JO_SA_KEY);
+    _kanbanApp = admin.initializeApp(
+      { credential: admin.credential.cert(serviceAccount) },
+      'kanban',
+    );
+  }
+  return _kanbanApp.firestore();
+}
 
 // ─── Express-app ─────────────────────────────────────────────────────────────
 const app = express();
@@ -97,6 +106,7 @@ app.post('/', upload.single('attachment'), async (req, res) => {
 
   try {
     const attachmentUrl = req.file ? await uploadToStorage(req.file) : null;
+    const db = getKanbanDb();
 
     const docRef = await db.collection('tickets').add({
       board_id:    boardId  || '',
@@ -127,7 +137,7 @@ app.post('/', upload.single('attachment'), async (req, res) => {
 // ─── Cloud Function export ────────────────────────────────────────────────────
 exports.feedbackApi = onRequest(
   {
-    secrets: [validApiKeysSecret],
+    secrets: [validApiKeysSecret, priveJoSaKeySecret],
     region: 'europe-west1',
     cors: true,
   },

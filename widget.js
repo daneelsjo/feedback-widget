@@ -3,6 +3,15 @@
  * Host op GitHub en laad via jsDelivr CDN.
  *
  * Vereist: window.FeedbackWidgetConfig vóór het laden van dit script.
+ *
+ * Config opties:
+ *   apiUrl         — URL van de Cloud Function
+ *   apiKey         — geheime API-sleutel
+ *   boardId        — Firestore ID van het Kanban-bord
+ *   statusId       — Firestore ID van de "Nieuw"-kolom
+ *   ownerUid       — Firebase Auth UID van de bord-eigenaar
+ *   sourceSiteName — Naam van de externe website (zichtbaar in beschrijving)
+ *   siteTagId      — (optioneel) Firestore tag-ID specifiek voor deze website
  */
 (function () {
   'use strict';
@@ -13,7 +22,7 @@
     return;
   }
 
-  // ─── Styles (geïsoleerd in Shadow DOM) ───────────────────────────────────────
+  // ─── Styles ──────────────────────────────────────────────────────────────────
   const STYLE = `
     :host {
       all: initial;
@@ -24,7 +33,6 @@
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    /* ── Trigger-knop ── */
     .trigger-btn {
       position: fixed;
       bottom: 24px;
@@ -51,7 +59,6 @@
       transform: translateY(-1px);
     }
 
-    /* ── Panel ── */
     .panel {
       position: fixed;
       bottom: 84px;
@@ -74,7 +81,6 @@
       pointer-events: all;
     }
 
-    /* ── Header ── */
     .panel-header {
       background: #4f46e5;
       color: #fff;
@@ -83,10 +89,7 @@
       align-items: center;
       justify-content: space-between;
     }
-    .panel-header h2 {
-      font-size: 15px;
-      font-weight: 600;
-    }
+    .panel-header h2 { font-size: 15px; font-weight: 600; }
     .close-btn {
       background: none;
       border: none;
@@ -101,14 +104,12 @@
     }
     .close-btn:hover { opacity: 1; }
 
-    /* ── Body ── */
     .panel-body {
       padding: 18px 18px 20px;
       max-height: 72vh;
       overflow-y: auto;
     }
 
-    /* ── Formulier velden ── */
     .field { margin-bottom: 14px; }
     label {
       display: block;
@@ -143,31 +144,8 @@
       border-color: #4f46e5;
       background: #fff;
     }
-    textarea {
-      resize: vertical;
-      min-height: 90px;
-      line-height: 1.5;
-    }
+    textarea { resize: vertical; min-height: 90px; line-height: 1.5; }
 
-    /* ── File upload ── */
-    .file-label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 11px;
-      border: 1.5px dashed #d1d5db;
-      border-radius: 8px;
-      cursor: pointer;
-      color: #6b7280;
-      background: #f9fafb;
-      font-size: 13px;
-      transition: border-color .15s, color .15s;
-    }
-    .file-label:hover { border-color: #4f46e5; color: #4f46e5; }
-    .file-name { font-size: 11.5px; color: #6b7280; margin-top: 4px; word-break: break-all; }
-    input[type="file"] { display: none; }
-
-    /* ── Honeypot (onzichtbaar voor mensen, lokt bots) ── */
     .hp-field {
       position: absolute;
       left: -9999px;
@@ -178,7 +156,6 @@
       pointer-events: none;
     }
 
-    /* ── Verzendknop ── */
     .submit-btn {
       width: 100%;
       padding: 10px;
@@ -200,7 +177,6 @@
     .submit-btn:hover:not(:disabled) { background: #4338ca; }
     .submit-btn:disabled { opacity: .65; cursor: not-allowed; }
 
-    /* ── Error ── */
     .error-msg {
       background: #fef2f2;
       border: 1px solid #fecaca;
@@ -211,7 +187,6 @@
       margin-top: 10px;
     }
 
-    /* ── Spinner ── */
     .spinner {
       width: 14px;
       height: 14px;
@@ -223,11 +198,7 @@
     }
     @keyframes fw-spin { to { transform: rotate(360deg); } }
 
-    /* ── Successcherm ── */
-    .success-view {
-      text-align: center;
-      padding: 36px 18px 28px;
-    }
+    .success-view { text-align: center; padding: 36px 18px 28px; }
     .success-icon {
       width: 54px;
       height: 54px;
@@ -238,17 +209,8 @@
       justify-content: center;
       margin: 0 auto 14px;
     }
-    .success-title {
-      font-size: 17px;
-      font-weight: 600;
-      color: #111827;
-      margin-bottom: 8px;
-    }
-    .success-text {
-      color: #6b7280;
-      font-size: 13.5px;
-      line-height: 1.6;
-    }
+    .success-title { font-size: 17px; font-weight: 600; color: #111827; margin-bottom: 8px; }
+    .success-text  { color: #6b7280; font-size: 13.5px; line-height: 1.6; }
   `;
 
   // ─── HTML template ────────────────────────────────────────────────────────────
@@ -284,6 +246,11 @@
           </div>
 
           <div class="field">
+            <label for="fw-subject">Onderwerp<span class="req" aria-hidden="true">*</span></label>
+            <input type="text" id="fw-subject" name="subject" placeholder="Korte omschrijving van het probleem" required />
+          </div>
+
+          <div class="field">
             <label for="fw-name">Naam<span class="req" aria-hidden="true">*</span></label>
             <input type="text" id="fw-name" name="name" placeholder="Jouw naam" required autocomplete="name" />
           </div>
@@ -298,19 +265,7 @@
             <textarea id="fw-desc" name="description" placeholder="Beschrijf zo duidelijk mogelijk wat je hebt gevonden of wat je wilt verbeteren…" required></textarea>
           </div>
 
-          <div class="field">
-            <label>Screenshot / Bijlage</label>
-            <label class="file-label" for="fw-file">
-              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-              </svg>
-              Klik om een bestand te selecteren
-            </label>
-            <input type="file" id="fw-file" name="attachment" accept="image/*,.pdf,.txt,.log" aria-label="Bijlage uploaden" />
-            <div class="file-name" id="fileName" aria-live="polite"></div>
-          </div>
-
-          <!-- Honeypot: verborgen voor gebruikers, valt bots op -->
+          <!-- Honeypot -->
           <div class="hp-field" aria-hidden="true">
             <label for="fw-hp">Website</label>
             <input type="text" id="fw-hp" name="website" tabindex="-1" autocomplete="off" />
@@ -336,25 +291,18 @@
       root.innerHTML = `<style>${STYLE}</style>${TEMPLATE}`;
       this._shadow.appendChild(root);
 
-      this._panel     = this._shadow.getElementById('panel');
-      this._triggerBtn = this._shadow.getElementById('triggerBtn');
-      this._closeBtn  = this._shadow.getElementById('closeBtn');
-      this._form      = this._shadow.getElementById('feedbackForm');
-      this._submitBtn = this._shadow.getElementById('submitBtn');
-      this._fileInput = this._shadow.getElementById('fw-file');
-      this._fileName  = this._shadow.getElementById('fileName');
-      this._panelBody = this._shadow.getElementById('panelBody');
+      this._panel          = this._shadow.getElementById('panel');
+      this._triggerBtn     = this._shadow.getElementById('triggerBtn');
+      this._closeBtn       = this._shadow.getElementById('closeBtn');
+      this._form           = this._shadow.getElementById('feedbackForm');
+      this._submitBtn      = this._shadow.getElementById('submitBtn');
+      this._panelBody      = this._shadow.getElementById('panelBody');
       this._errorContainer = this._shadow.getElementById('errorContainer');
 
       this._triggerBtn.addEventListener('click', () => this._toggle());
       this._closeBtn.addEventListener('click',   () => this._close());
       this._form.addEventListener('submit',      (e) => this._submit(e));
-      this._fileInput.addEventListener('change', () => {
-        const f = this._fileInput.files[0];
-        this._fileName.textContent = f ? f.name : '';
-      });
 
-      // Sluit panel bij klik buiten de shadow host
       document.addEventListener('click', (e) => {
         if (this._isOpen && !this.contains(e.target)) this._close();
       });
@@ -379,21 +327,16 @@
     async _submit(e) {
       e.preventDefault();
 
-      // Honeypot: bot heeft het veld gevuld → nep-succes tonen
       const hp = this._shadow.getElementById('fw-hp');
-      if (hp && hp.value !== '') {
-        this._showSuccess();
-        return;
-      }
+      if (hp && hp.value !== '') { this._showSuccess(); return; }
 
       const type        = this._shadow.getElementById('fw-type').value;
+      const subject     = this._shadow.getElementById('fw-subject').value.trim();
       const name        = this._shadow.getElementById('fw-name').value.trim();
       const email       = this._shadow.getElementById('fw-email').value.trim();
       const description = this._shadow.getElementById('fw-desc').value.trim();
-      const file        = this._fileInput.files[0] || null;
 
-      // Client-validatie
-      if (!type || !name || !email || !description) {
+      if (!type || !subject || !name || !email || !description) {
         this._showError('Vul alle verplichte velden in.');
         return;
       }
@@ -407,31 +350,20 @@
 
       const payload = {
         type,
+        subject,
         name,
         email,
         description,
         boardId:        config.boardId        || '',
         statusId:       config.statusId       || '',
         ownerUid:       config.ownerUid       || '',
+        siteTagId:      config.siteTagId      || '',
         sourceSiteName: config.sourceSiteName || window.location.origin,
         pageOrigin:     window.location.origin,
         pageUrl:        window.location.href,
         browserOs:      navigator.userAgent,
         resolution:     window.innerWidth + 'x' + window.innerHeight,
       };
-
-      if (file) {
-        payload.attachment = {
-          name: file.name,
-          type: file.type,
-          data: await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload  = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          }),
-        };
-      }
 
       try {
         const res = await fetch(config.apiUrl, {
@@ -468,9 +400,7 @@
       this._errorContainer.innerHTML = `<div class="error-msg">${msg}</div>`;
     }
 
-    _clearError() {
-      this._errorContainer.innerHTML = '';
-    }
+    _clearError() { this._errorContainer.innerHTML = ''; }
 
     _showSuccess() {
       this._panelBody.innerHTML = `
@@ -487,12 +417,10 @@
     }
   }
 
-  // Registreer custom element (guard voor meervoudig laden)
   if (!customElements.get('feedback-widget')) {
     customElements.define('feedback-widget', FeedbackWidget);
   }
 
-  // Auto-mount zodra de DOM klaar is
   function mount() {
     if (!document.querySelector('feedback-widget')) {
       document.body.appendChild(document.createElement('feedback-widget'));

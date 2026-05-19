@@ -5,16 +5,12 @@ const { defineSecret } = require('firebase-functions/params');
 const admin  = require('firebase-admin');
 const express = require('express');
 const cors   = require('cors');
-const path   = require('path');
-const { v4: uuidv4 } = require('uuid');
 
 const validApiKeysSecret = defineSecret('VALID_API_KEYS');
 const priveJoSaKeySecret  = defineSecret('PRIVE_JO_SA_KEY');
 
 // ─── Firebase initialisatie ───────────────────────────────────────────────────
 admin.initializeApp();
-
-const bucket = admin.storage().bucket();
 
 let _kanbanApp = null;
 
@@ -34,23 +30,19 @@ const app = express();
 
 app.use(cors({ origin: '*', methods: ['POST', 'OPTIONS'] }));
 app.options('*', cors());
-
-// express.raw() legt de body vast als Buffer vóór Cloud Run de stream kan consumeren.
-// type '*/*' zorgt dat het voor elke Content-Type werkt.
-app.use(express.raw({ type: '*/*', limit: '20mb' }));
+app.use(express.raw({ type: '*/*', limit: '5mb' }));
 
 // ─── Type → typeId mapping ────────────────────────────────────────────────────
 const TYPE_IDS = {
   bug:         'MEIipj89qLCIdKNcun28',
-  feature:     'YKK54Dw5nureM74oat4q',
+  feature:     'MEIipj89qLCIdKNcun28',
   improvement: 'gmlEYp5mzuhs4dATwhaB',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function buildTitle(type, description) {
+function buildTitle(type, subject) {
   const labels = { bug: 'Bug', improvement: 'Verbetering', feature: 'Feature' };
-  const first  = (description.split(/[.!?\n]/)[0] || '').trim().slice(0, 80);
-  return `[${labels[type] || 'Feedback'}] ${first}`;
+  return `[${labels[type] || 'Feedback'}] ${subject}`;
 }
 
 function buildDescription(b) {
@@ -65,22 +57,9 @@ function buildDescription(b) {
   ].join('\n');
 }
 
-async function uploadBase64ToStorage(attachment) {
-  const base64   = attachment.data.includes(',') ? attachment.data.split(',')[1] : attachment.data;
-  const buffer   = Buffer.from(base64, 'base64');
-  const ext      = path.extname(attachment.name) || '';
-  const token    = uuidv4();
-  const fileName = `feedback/${Date.now()}-${token}${ext}`;
-  const fileRef  = bucket.file(fileName);
-  await fileRef.save(buffer, {
-    metadata: { contentType: attachment.type, metadata: { firebaseStorageDownloadTokens: token } },
-  });
-  return `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(fileName)}`;
-}
-
 // ─── Route: POST / ────────────────────────────────────────────────────────────
 app.post('/', async (req, res) => {
-  // Body parsen — req.body is een Buffer (van express.raw) of al een object
+  // Body parsen
   let body;
   try {
     if (Buffer.isBuffer(req.body) && req.body.length > 0) {
@@ -88,7 +67,7 @@ app.post('/', async (req, res) => {
     } else if (req.body && typeof req.body === 'object' && Object.keys(req.body).length > 0) {
       body = req.body;
     } else {
-      throw new Error('Lege body ontvangen');
+      throw new Error('Lege body');
     }
   } catch (e) {
     console.error('[feedbackApi] Body parse error:', e.message);
@@ -102,12 +81,11 @@ app.post('/', async (req, res) => {
     return res.status(401).json({ message: 'Ongeldige of ontbrekende API-sleutel.' });
   }
 
-  const { type, name, email, description, boardId, statusId,
-          sourceSiteName, pageUrl, browserOs, resolution, attachment,
-          ownerUid } = body;
+  const { type, subject, name, email, description, boardId, statusId,
+          ownerUid, siteTagId, sourceSiteName, pageUrl, browserOs, resolution } = body;
 
   // Validatie
-  const missing = ['type','name','email','description'].filter(f => !body[f]);
+  const missing = ['type','subject','name','email','description'].filter(f => !body[f]);
   if (missing.length) {
     return res.status(400).json({ message: `Verplichte velden ontbreken: ${missing.join(', ')}.` });
   }
@@ -119,31 +97,29 @@ app.post('/', async (req, res) => {
   }
 
   try {
-    let attachmentUrl = null;
-    if (attachment && attachment.data) {
-      attachmentUrl = await uploadBase64ToStorage(attachment);
-    }
-
     const db     = getKanbanDb();
     const typeId = TYPE_IDS[type] || TYPE_IDS.bug;
     const uid    = ownerUid || 'KNjbJuZV1MZMEUQKsViehVhW3832';
     const now    = admin.firestore.FieldValue.serverTimestamp();
+
+    // Tags: typeId altijd, siteTagId enkel als meegegeven
+    const tags = siteTagId ? [typeId, siteTagId] : [typeId];
 
     await db.collection('workflowCards').add({
       boardId:     boardId  || 'XOhvgrJn3VYr7mR6vjsG',
       columnId:    statusId || 'NouTYAysQ5KsQkqGWXRx',
       cardPage:    'Workflow',
       cardColor:   null,
-      title:       buildTitle(type, description),
+      title:       buildTitle(type, subject),
       description: buildDescription({ description, name, email, sourceSiteName, pageUrl, browserOs, resolution }),
       typeId,
-      tags:        [typeId],
+      tags,
       uid,
       priorityId:  null,
       dueDate:     null,
       checklist:   [],
       subtasks:    [],
-      links:       attachmentUrl ? [{ label: 'Bijlage', url: attachmentUrl }] : [],
+      links:       [],
       logs:        [],
       createdAt:   now,
       updatedAt:   now,

@@ -405,25 +405,41 @@
       this._setLoading(true);
       this._clearError();
 
-      const fd = new FormData();
-      fd.append('type',           type);
-      fd.append('name',           name);
-      fd.append('email',          email);
-      fd.append('description',    description);
-      fd.append('boardId',        config.boardId        || '');
-      fd.append('statusId',       config.statusId       || '');
-      fd.append('sourceSiteName', config.sourceSiteName || window.location.origin);
-      fd.append('pageOrigin',     window.location.origin);
-      fd.append('pageUrl',        window.location.href);
-      fd.append('browserOs',      navigator.userAgent);
-      fd.append('resolution',     window.innerWidth + 'x' + window.innerHeight);
-      if (file) fd.append('attachment', file);
+      const payload = {
+        type,
+        name,
+        email,
+        description,
+        boardId:        config.boardId        || '',
+        statusId:       config.statusId       || '',
+        sourceSiteName: config.sourceSiteName || window.location.origin,
+        pageOrigin:     window.location.origin,
+        pageUrl:        window.location.href,
+        browserOs:      navigator.userAgent,
+        resolution:     window.innerWidth + 'x' + window.innerHeight,
+      };
+
+      if (file) {
+        payload.attachment = {
+          name: file.name,
+          type: file.type,
+          data: await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          }),
+        };
+      }
 
       try {
         const res = await fetch(config.apiUrl, {
           method: 'POST',
-          headers: { 'X-API-Key': config.apiKey || '' },
-          body: fd,
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': config.apiKey || '',
+          },
+          body: JSON.stringify(payload),
         });
 
         if (!res.ok) {

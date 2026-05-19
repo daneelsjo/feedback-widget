@@ -34,7 +34,19 @@ const app = express();
 
 app.use(cors({ origin: '*', methods: ['POST', 'OPTIONS'] }));
 app.options('*', cors());
-app.use(express.json({ limit: '20mb' }));
+
+// Firebase Functions v2 buffert de body in req.rawBody — parse die als fallback
+app.use((req, res, next) => {
+  if (req.rawBody && (!req.body || Object.keys(req.body).length === 0)) {
+    try {
+      req.body = JSON.parse(req.rawBody.toString('utf8'));
+    } catch (_) {
+      req.body = {};
+    }
+    return next();
+  }
+  express.json({ limit: '20mb' })(req, res, next);
+});
 
 // ─── Type → typeId mapping ────────────────────────────────────────────────────
 const TYPE_IDS = {

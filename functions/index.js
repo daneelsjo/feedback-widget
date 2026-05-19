@@ -29,24 +29,36 @@ function getKanbanDb() {
   return _kanbanApp.firestore();
 }
 
+// ─── Body parser: werkt in alle Cloud Run scenario's ─────────────────────────
+// Firebase v2 buffert de body op drie mogelijke plaatsen — we proberen alle drie.
+async function parseJsonBody(req) {
+  // 1. Al geparsd door het framework
+  if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body) && Object.keys(req.body).length > 0) {
+    return req.body;
+  }
+  // 2. rawBody buffer (Firebase v1-stijl, soms aanwezig in v2)
+  const raw = req.rawBody;
+  if (raw && raw.length > 0) {
+    return JSON.parse(Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw));
+  }
+  // 3. Lees rechtstreeks van de request-stream
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c)));
+    req.on('end', () => {
+      const text = Buffer.concat(chunks).toString('utf8');
+      try { resolve(JSON.parse(text)); }
+      catch (e) { reject(new Error('Ongeldige JSON in request body')); }
+    });
+    req.on('error', reject);
+  });
+}
+
 // ─── Express-app ─────────────────────────────────────────────────────────────
 const app = express();
 
 app.use(cors({ origin: '*', methods: ['POST', 'OPTIONS'] }));
 app.options('*', cors());
-
-// Firebase Functions v2 buffert de body in req.rawBody — parse die als fallback
-app.use((req, res, next) => {
-  if (req.rawBody && (!req.body || Object.keys(req.body).length === 0)) {
-    try {
-      req.body = JSON.parse(req.rawBody.toString('utf8'));
-    } catch (_) {
-      req.body = {};
-    }
-    return next();
-  }
-  express.json({ limit: '20mb' })(req, res, next);
-});
 
 // ─── Type → typeId mapping ────────────────────────────────────────────────────
 const TYPE_IDS = {
@@ -62,56 +74,54 @@ function buildTitle(type, description) {
   return `[${labels[type] || 'Feedback'}] ${first}`;
 }
 
-function buildDescription(body) {
-  const { description, name, email, sourceSiteName, pageUrl, browserOs, resolution } = body;
+function buildDescription(b) {
   return [
-    description,
-    '',
+    b.description, '',
     '---',
-    `Gemeld door: ${name} <${email}>`,
-    `Website: ${sourceSiteName || ''}`,
-    `Pagina: ${pageUrl || ''}`,
-    `Browser: ${browserOs || ''}`,
-    `Scherm: ${resolution || ''}`,
+    `Gemeld door: ${b.name} <${b.email}>`,
+    `Website: ${b.sourceSiteName || ''}`,
+    `Pagina: ${b.pageUrl || ''}`,
+    `Browser: ${b.browserOs || ''}`,
+    `Scherm: ${b.resolution || ''}`,
   ].join('\n');
 }
 
 async function uploadBase64ToStorage(attachment) {
-  const { name: origName, type: mimeType, data } = attachment;
-  const base64 = data.includes(',') ? data.split(',')[1] : data;
-  const buffer = Buffer.from(base64, 'base64');
-  const ext      = path.extname(origName) || '';
+  const base64   = attachment.data.includes(',') ? attachment.data.split(',')[1] : attachment.data;
+  const buffer   = Buffer.from(base64, 'base64');
+  const ext      = path.extname(attachment.name) || '';
   const token    = uuidv4();
   const fileName = `feedback/${Date.now()}-${token}${ext}`;
   const fileRef  = bucket.file(fileName);
-
   await fileRef.save(buffer, {
-    metadata: {
-      contentType: mimeType,
-      metadata: { firebaseStorageDownloadTokens: token },
-    },
+    metadata: { contentType: attachment.type, metadata: { firebaseStorageDownloadTokens: token } },
   });
-
   return `https://storage.googleapis.com/${bucket.name}/${encodeURIComponent(fileName)}`;
 }
 
 // ─── Route: POST / ────────────────────────────────────────────────────────────
 app.post('/', async (req, res) => {
+  // Body parsen
+  let body;
+  try {
+    body = await parseJsonBody(req);
+  } catch (e) {
+    console.error('[feedbackApi] Body parse error:', e.message);
+    return res.status(400).json({ message: 'Ongeldige request body.' });
+  }
+
   // API-sleutel validatie
   const providedKey = req.headers['x-api-key'] || '';
-  const validKeys   = (process.env.VALID_API_KEYS || '')
-    .split(',').map(k => k.trim()).filter(Boolean);
-
+  const validKeys   = (process.env.VALID_API_KEYS || '').split(',').map(k => k.trim()).filter(Boolean);
   if (!providedKey || !validKeys.includes(providedKey)) {
     return res.status(401).json({ message: 'Ongeldige of ontbrekende API-sleutel.' });
   }
 
   const { type, name, email, description, boardId, statusId,
-          sourceSiteName, pageOrigin, pageUrl, browserOs, resolution,
-          attachment } = req.body;
+          sourceSiteName, pageUrl, browserOs, resolution, attachment } = body;
 
   // Validatie
-  const missing = ['type','name','email','description'].filter(f => !req.body[f]);
+  const missing = ['type','name','email','description'].filter(f => !body[f]);
   if (missing.length) {
     return res.status(400).json({ message: `Verplichte velden ontbreken: ${missing.join(', ')}.` });
   }
@@ -128,12 +138,12 @@ app.post('/', async (req, res) => {
       attachmentUrl = await uploadBase64ToStorage(attachment);
     }
 
-    const db    = getKanbanDb();
+    const db     = getKanbanDb();
     const typeId = TYPE_IDS[type] || TYPE_IDS.bug;
     const uid    = uuidv4();
     const now    = admin.firestore.FieldValue.serverTimestamp();
 
-    const card = {
+    await db.collection('workflowCards').add({
       boardId:     boardId  || 'XOhvgrJn3VYr7mR6vjsG',
       columnId:    statusId || 'NouTYAysQ5KsQkqGWXRx',
       cardPage:    'Workflow',
@@ -151,22 +161,17 @@ app.post('/', async (req, res) => {
       logs:        [],
       createdAt:   now,
       updatedAt:   now,
-    };
+    });
 
-    const docRef = await db.collection('workflowCards').add(card);
-
-    return res.status(201).json({ message: 'Feedback succesvol ontvangen.', ticketId: docRef.id });
+    return res.status(201).json({ message: 'Feedback succesvol ontvangen.' });
   } catch (err) {
-    console.error('[feedbackApi]', err);
+    console.error('[feedbackApi] Fout:', err);
     return res.status(500).json({ message: 'Interne serverfout.' });
   }
 });
 
 // ─── Cloud Function export (Gen 2) ───────────────────────────────────────────
 exports.feedbackApi = onRequest(
-  {
-    secrets: [validApiKeysSecret, priveJoSaKeySecret],
-    region: 'europe-west1',
-  },
+  { secrets: [validApiKeysSecret, priveJoSaKeySecret], region: 'europe-west1' },
   app,
 );

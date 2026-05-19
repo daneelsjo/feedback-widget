@@ -46,7 +46,7 @@ jobs:
 
       # ── 6. Deployen naar Firebase Cloud Functions ─────────────────────────
       - name: Deploy naar Firebase
-        run: firebase deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }} --force
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 

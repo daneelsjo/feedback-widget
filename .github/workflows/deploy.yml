@@ -46,7 +46,7 @@ jobs:
         with:
           args: deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       # ── 6. Samenvatting in de GitHub Actions-log ──────────────────────────
       - name: Deploy samenvatting

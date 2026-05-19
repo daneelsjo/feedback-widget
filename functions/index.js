@@ -103,7 +103,8 @@ app.post('/', async (req, res) => {
   }
 
   const { type, name, email, description, boardId, statusId,
-          sourceSiteName, pageUrl, browserOs, resolution, attachment } = body;
+          sourceSiteName, pageUrl, browserOs, resolution, attachment,
+          ownerUid } = body;
 
   // Validatie
   const missing = ['type','name','email','description'].filter(f => !body[f]);
@@ -125,7 +126,7 @@ app.post('/', async (req, res) => {
 
     const db     = getKanbanDb();
     const typeId = TYPE_IDS[type] || TYPE_IDS.bug;
-    const uid    = uuidv4();
+    const uid    = ownerUid || uuidv4();
     const now    = admin.firestore.FieldValue.serverTimestamp();
 
     await db.collection('workflowCards').add({

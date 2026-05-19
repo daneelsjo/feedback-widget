@@ -412,6 +412,7 @@
         description,
         boardId:        config.boardId        || '',
         statusId:       config.statusId       || '',
+        ownerUid:       config.ownerUid       || '',
         sourceSiteName: config.sourceSiteName || window.location.origin,
         pageOrigin:     window.location.origin,
         pageUrl:        window.location.href,

@@ -35,7 +35,7 @@ app.use(express.raw({ type: '*/*', limit: '5mb' }));
 // ─── Type → typeId mapping ────────────────────────────────────────────────────
 const TYPE_IDS = {
   bug:         'MEIipj89qLCIdKNcun28',
-  feature:     'MEIipj89qLCIdKNcun28',
+  feature:     'YKK54Dw5nureM74oat4q',
   improvement: 'gmlEYp5mzuhs4dATwhaB',
 };
 

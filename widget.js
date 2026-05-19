@@ -21,9 +21,9 @@
   // Voeg hier per website een regel toe. De domeinnaam is zonder www en zonder https.
   // Voorbeeld: 'mijnwebsite.be': 'abc123tagId'
   const SITE_TAGS = {
-    'localhost':        'TEST_TAG_ID',       // lokaal testen
-    // 'website-a.be':  'TAG_ID_WEBSITE_A',
-    // 'website-b.be':  'TAG_ID_WEBSITE_B',
+    'localhost':        '9UL9hXvhnrjm3ulil59B',       // lokaal testen
+    'prive-jo.web.app':  'Tds44nUDMQq8XD1BKAKg',
+    'optech-jo.web.app':           '9X8gSwm8hRyzLQimv2S6',
   };
 
   const config = window.FeedbackWidgetConfig;

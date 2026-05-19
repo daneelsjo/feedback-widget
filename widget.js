@@ -24,6 +24,8 @@
     'localhost':        '9UL9hXvhnrjm3ulil59B',       // lokaal testen
     'prive-jo.web.app':  'Tds44nUDMQq8XD1BKAKg',
     'optech-jo.web.app':           '9X8gSwm8hRyzLQimv2S6',
+    'optech-jo-dev.web.app': '9X8gSwm8hRyzLQimv2S6',
+    'prive-jo-dev.web.app':'Tds44nUDMQq8XD1BKAKg'
   };
 
   const config = window.FeedbackWidgetConfig;

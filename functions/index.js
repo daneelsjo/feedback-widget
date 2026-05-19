@@ -10,11 +10,15 @@ const path   = require('path');
 const { v4: uuidv4 } = require('uuid');
 
 // ─── Firebase initialisatie ───────────────────────────────────────────────────
-// In Cloud Functions is de Admin SDK automatisch geauthentiseerd — geen
-// serviceAccountKey.json nodig.
+// Standaard app: feedback-widget-f0087 → Storage (bijlagen)
 admin.initializeApp();
 
-const db     = admin.firestore();
+// Tweede app: prive-jo → Firestore (Kanban-tickets)
+// De service account van feedback-widget-f0087 moet in prive-jo de rol
+// "Cloud Datastore User" hebben (zie IMPLEMENTATIE.md voor instructies).
+const kanbanApp = admin.initializeApp({ projectId: 'prive-jo' }, 'kanban');
+
+const db     = kanbanApp.firestore();
 const bucket = admin.storage().bucket();
 
 // ─── Secret: komma-gescheiden lijst van geldige API-sleutels ─────────────────

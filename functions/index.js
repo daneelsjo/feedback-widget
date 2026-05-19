@@ -42,7 +42,7 @@ app.use(express.raw({ type: '*/*', limit: '20mb' }));
 // ─── Type → typeId mapping ────────────────────────────────────────────────────
 const TYPE_IDS = {
   bug:         'MEIipj89qLCIdKNcun28',
-  feature:     'MEIipj89qLCIdKNcun28',
+  feature:     'YKK54Dw5nureM74oat4q',
   improvement: 'gmlEYp5mzuhs4dATwhaB',
 };
 
@@ -126,7 +126,7 @@ app.post('/', async (req, res) => {
 
     const db     = getKanbanDb();
     const typeId = TYPE_IDS[type] || TYPE_IDS.bug;
-    const uid    = ownerUid || uuidv4();
+    const uid    = ownerUid || 'KNjbJuZV1MZMEUQKsViehVhW3832';
     const now    = admin.firestore.FieldValue.serverTimestamp();
 
     await db.collection('workflowCards').add({

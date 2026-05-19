@@ -1,102 +1,141 @@
-# Implementatie-instructies — Feedback Widget
+# Feedback Widget — Implementatiegids
 
-## 1. Backend opzetten (Kanban-website)
-
-### Packages installeren
-```bash
-npm install express cors multer firebase-admin uuid dotenv
-```
-
-### Firebase Service Account
-1. Ga naar **Firebase Console → Projectinstellingen → Serviceaccounts**
-2. Klik op **Nieuwe privésleutel genereren** → sla op als `serviceAccountKey.json`
-3. Zet dit bestand **nooit** in een publieke Git-repository
-
-### .env aanmaken
-```env
-FIREBASE_STORAGE_BUCKET=jouw-project-id.appspot.com
-VALID_API_KEYS=sleutel_website_a,sleutel_website_b
-GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
-```
-
-> **Tip voor Vercel / Railway:** Gebruik `FIREBASE_SERVICE_ACCOUNT_JSON` met de volledige JSON-inhoud als één string.
-
-### Route koppelen in server.js
-```javascript
-require('dotenv').config();
-const express = require('express');
-const app = express();
-
-const feedbackRoute = require('./api-route');
-app.use('/api/feedback', feedbackRoute);
-
-app.listen(3000, () => console.log('Server draait op poort 3000'));
-```
+De widget is een klein stukje JavaScript dat je op eender welke website plakt.
+Bezoekers kunnen er bugs, verbeteringen of feature-aanvragen mee insturen.
+Die komen automatisch als kaartjes terecht in jouw Kanban-bord.
 
 ---
 
-## 2. Widget op een externe website plaatsen
+## Hoe werkt het in grote lijnen?
 
-Plak het onderstaande snippet in de `<head>` of vlak voor `</body>`:
+```
+Bezoeker vult formulier in
+        ↓
+widget.js (via CDN)
+        ↓
+Firebase Cloud Function  ←  valideert API-sleutel
+        ↓
+Firestore (Kanban-bord)  →  nieuw kaartje verschijnt
+```
+
+Het script (`widget.js`) staat op GitHub en wordt automatisch geleverd via jsDelivr CDN.
+Je hoeft maar op één plek iets aan te passen — de rest volgt vanzelf.
+
+---
+
+## Stap 1 — Nieuwe website toevoegen aan de tag-mapping
+
+Open `widget.js` en zoek het `SITE_TAGS`-object bovenaan het bestand:
+
+```js
+const SITE_TAGS = {
+  'localhost':       'TEST_TAG_ID',
+  // 'website-a.be': 'TAG_ID_WEBSITE_A',
+  // 'website-b.be': 'TAG_ID_WEBSITE_B',
+};
+```
+
+Voeg één regel toe voor je nieuwe website:
+
+```js
+'mijnwebsite.be': 'FIRESTORE_TAG_ID_VAN_DIE_WEBSITE',
+```
+
+**Regels:**
+- Domeinnaam altijd **zonder `www.`** en **zonder `https://`**
+- Het tag-ID vind je in je Kanban-app (Firestore-ID van de tag die je wilt koppelen)
+- `localhost` gebruik je enkel voor lokaal testen — verander de waarde naar een echt tag-ID als je wil dat testinzendingen ook getagd worden
+
+Sla op, commit en push naar `main`. De GitHub Actions-workflow deploy automatisch en de CDN serveert de nieuwe versie.
+
+---
+
+## Stap 2 — Script op de website plakken
+
+Plak dit snippet in de `<head>` van elke pagina, **voor** de sluit-tag `</head>`:
 
 ```html
-<!-- Stap 1: Configuratie (pas aan per website) -->
 <script>
   window.FeedbackWidgetConfig = {
-    apiUrl:         "https://jouw-kanban-website.com/api/feedback",
-    apiKey:         "sleutel_website_a",          // uniek per externe site
-    boardId:        "ID_VAN_HET_KANBAN_BORD",
-    statusId:       "ID_VAN_KOLOM_NIEUW",
-    sourceSiteName: "Naam van de Externe Website"
+    apiUrl:    "https://europe-west1-feedback-widget-f0087.cloudfunctions.net/feedbackApi",
+    apiKey:    "kanban-2024-xK9p",
+    boardId:   "XOhvgrJn3VYr7mR6vjsG",
+    statusId:  "NouTYAysQ5KsQkqGWXRx",
+    ownerUid:  "KNjbJuZV1MZMEUQKsViehVhW3832"
   };
 </script>
-
-<!-- Stap 2: Widget laden via jsDelivr CDN -->
-<script
-  src="https://cdn.jsdelivr.net/gh/JOUW-GITHUB-USERNAME/JOUW-REPO@main/widget.js"
-  defer
-></script>
+<script src="https://cdn.jsdelivr.net/gh/daneelsjo/feedback-widget@main/widget.js" defer></script>
 ```
 
-> Vervang `JOUW-GITHUB-USERNAME` en `JOUW-REPO` door jouw GitHub-gegevens.  
-> Gebruik een versietag (bijv. `@v1.0.0`) in productie voor cache-controle.
+Dit is **hetzelfde snippet op elke website** — je hoeft niets aan te passen per site.
+De widget detecteert zelf op welk domein hij draait en pikt het juiste tag-ID op uit `SITE_TAGS`.
 
 ---
 
-## 3. Widget hosten op GitHub + CDN
+## Wat ziet de bezoeker?
 
-1. Push `widget.js` naar een publieke GitHub-repository
-2. Maak een release-tag aan: `git tag v1.0.0 && git push --tags`
-3. jsDelivr-URL wordt automatisch: `https://cdn.jsdelivr.net/gh/USER/REPO@v1.0.0/widget.js`
-4. **Update overal tegelijk:** door een nieuwe tag te pushen en de CDN-URL bij te werken
+Een paarse knop rechtsonder met "Feedback". Bij klikken opent een formulier:
 
----
+| Veld | Verplicht | Omschrijving |
+|------|-----------|--------------|
+| Type | ja | Bug / Verbetering / Feature |
+| Onderwerp | ja | Korte omschrijving (wordt de kaarttitel) |
+| Naam | ja | Naam van de melder |
+| E-mailadres | ja | E-mail van de melder |
+| Omschrijving | ja | Uitgebreide beschrijving |
 
-## 4. Firestore-structuur
-
-Collectie: `tickets`
-
-| Veld | Type | Waarde |
-|------|------|--------|
-| `board_id` | string | ID van het Kanban-bord |
-| `status_id` | string | ID van de "Nieuw"-kolom |
-| `type` | string | `bug` / `improvement` / `feature` |
-| `title` | string | `[Bug] Eerste zin van omschrijving…` |
-| `description` | string | Volledige omschrijving |
-| `reporter.name` | string | Naam van de melder |
-| `reporter.email` | string | E-mail van de melder |
-| `metadata.source_site` | string | Naam van de externe website |
-| `metadata.url` | string | Exacte pagina-URL |
-| `metadata.browser_os` | string | User-Agent string |
-| `metadata.resolution` | string | bijv. `1920x1080` |
-| `attachment_url` | string / null | Firebase Storage URL |
-| `created_at` | timestamp | Server-tijdstempel |
+Na verzenden verschijnt een bevestigingsscherm. Het kaartje staat meteen in Kanban.
 
 ---
 
-## 5. Veiligheids-checklist
+## Wat staat er op het kaartje in Kanban?
 
-- [ ] Elke externe website krijgt een **unieke** `apiKey`
-- [ ] `VALID_API_KEYS` en `serviceAccountKey.json` staan **niet** in Git (voeg toe aan `.gitignore`)
-- [ ] Firebase Storage-regels beperken schrijven tot de Admin SDK
-- [ ] Overweeg rate-limiting toe te voegen (bijv. `express-rate-limit`) per API-sleutel
+**Titel:** `[Bug] Onderwerp dat de bezoeker intikte`
+(of `[Verbetering]` / `[Feature]` afhankelijk van het type)
+
+**Beschrijving:**
+```
+Omschrijving die de bezoeker schreef
+
+---
+Gemeld door: Naam <email@voorbeeld.be>
+Website: mijnwebsite.be
+Pagina: https://mijnwebsite.be/contact
+Browser: Mozilla/5.0 ...
+Scherm: 1920x1080
+```
+
+**Tags op het kaartje:** type-tag + site-tag (als het domein in `SITE_TAGS` staat)
+
+---
+
+## Een nieuwe website toevoegen — samenvatting
+
+1. Open `widget.js`
+2. Voeg toe aan `SITE_TAGS`: `'nieuwdomein.be': 'FIRESTORE_TAG_ID'`
+3. Commit & push naar `main`
+4. Plak het vaste snippet (zie Stap 2) in de `<head>` van die website
+5. Klaar — kaartjes komen automatisch getagd binnen
+
+---
+
+## Probleemoplossing
+
+**Widget verschijnt niet**
+→ Controleer of `window.FeedbackWidgetConfig` correct is ingesteld vóór het script-tag.
+→ Open de browserconsole (F12) — er staat een waarschuwing als de config ontbreekt.
+
+**Formulier geeft foutmelding**
+→ Controleer of de Cloud Function actief is: [Firebase Console](https://console.firebase.google.com/project/feedback-widget-f0087/functions)
+→ Bekijk de logboeken in de Firebase Console voor de exacte foutmelding.
+
+**Kaartje verschijnt niet in Kanban**
+→ Controleer of `ownerUid` in het snippet overeenkomt met jouw Firebase Auth UID.
+→ Zoek in Firestore (collectie `workflowCards`) of het kaartje er wel staat maar met een ander UID.
+
+**Tag-ID niet correct**
+→ Controleer het `SITE_TAGS`-object in `widget.js` — domeinnaam zonder `www.` en zonder `https://`.
+→ Verifieer het tag-ID in Firestore van je Kanban-project.
+
+**CDN laadt oude versie**
+→ jsDelivr cachet bestanden. Forceer verversing via: `https://purge.jsdelivr.net/gh/daneelsjo/feedback-widget@main/widget.js`

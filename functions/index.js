@@ -54,11 +54,32 @@ const upload = multer({
   },
 });
 
+// ─── Type → typeId mapping (uit prive-jo Firestore) ──────────────────────────
+const TYPE_IDS = {
+  bug:         'MEIipj89qLCIdKNcun28',
+  feature:     'MEIipj89qLCIdKNcun28',
+  improvement: 'gmlEYp5mzuhs4dATwhaB',
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildTitle(type, description) {
   const labels = { bug: 'Bug', improvement: 'Verbetering', feature: 'Feature' };
   const first  = (description.split(/[.!?\n]/)[0] || '').trim().slice(0, 80);
   return `[${labels[type] || 'Feedback'}] ${first}`;
+}
+
+function buildDescription(body) {
+  const { description, name, email, sourceSiteName, pageUrl, browserOs, resolution } = body;
+  return [
+    description,
+    '',
+    '---',
+    `Gemeld door: ${name} <${email}>`,
+    `Website: ${sourceSiteName || ''}`,
+    `Pagina: ${pageUrl || ''}`,
+    `Browser: ${browserOs || ''}`,
+    `Scherm: ${resolution || ''}`,
+  ].join('\n');
 }
 
 async function uploadToStorage(file) {
@@ -107,22 +128,31 @@ app.post('/', upload.single('attachment'), async (req, res) => {
     const attachmentUrl = req.file ? await uploadToStorage(req.file) : null;
     const db = getKanbanDb();
 
-    const docRef = await db.collection('tickets').add({
-      board_id:    boardId  || '',
-      status_id:   statusId || '',
-      type,
-      title:       buildTitle(type, description),
-      description,
-      reporter:    { name, email },
-      metadata: {
-        source_site: sourceSiteName || pageOrigin || '',
-        url:         pageUrl        || '',
-        browser_os:  browserOs      || '',
-        resolution:  resolution     || '',
-      },
-      attachment_url: attachmentUrl,
-      created_at: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    const typeId = TYPE_IDS[type] || TYPE_IDS.bug;
+    const uid    = uuidv4();
+    const now    = admin.firestore.FieldValue.serverTimestamp();
+
+    const card = {
+      boardId:    boardId   || 'XOhvgrJn3VYr7mR6vjsG',
+      columnId:   statusId  || 'NouTYAysQ5KsQkqGWXRx',
+      cardPage:   'Workflow',
+      cardColor:  null,
+      title:      buildTitle(type, description),
+      description: buildDescription({ description, name, email, sourceSiteName, pageUrl, browserOs, resolution }),
+      typeId,
+      tags:       [typeId],
+      uid,
+      priorityId: null,
+      dueDate:    null,
+      checklist:  [],
+      subtasks:   [],
+      links:      attachmentUrl ? [{ label: 'Bijlage', url: attachmentUrl }] : [],
+      logs:       [],
+      createdAt:  now,
+      updatedAt:  now,
+    };
+
+    const docRef = await db.collection('workflowCards').add(card);
 
     return res.status(201).json({ message: 'Feedback succesvol ontvangen.', ticketId: docRef.id });
   } catch (err) {

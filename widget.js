@@ -10,17 +10,31 @@
  *   boardId        — Firestore ID van het Kanban-bord
  *   statusId       — Firestore ID van de "Nieuw"-kolom
  *   ownerUid       — Firebase Auth UID van de bord-eigenaar
- *   sourceSiteName — Naam van de externe website (zichtbaar in beschrijving)
- *   siteTagId      — (optioneel) Firestore tag-ID specifiek voor deze website
+ *
+ * Domeinnaam → siteTagId mapping: zie SITE_TAGS hieronder.
+ * Voeg per website een regel toe: 'jouwdomein.be': 'FIRESTORE_TAG_ID'
  */
 (function () {
   'use strict';
+
+  // ─── Domeinnaam → Kanban tag-ID ───────────────────────────────────────────────
+  // Voeg hier per website een regel toe. De domeinnaam is zonder www en zonder https.
+  // Voorbeeld: 'mijnwebsite.be': 'abc123tagId'
+  const SITE_TAGS = {
+    'localhost':        'TEST_TAG_ID',       // lokaal testen
+    // 'website-a.be':  'TAG_ID_WEBSITE_A',
+    // 'website-b.be':  'TAG_ID_WEBSITE_B',
+  };
 
   const config = window.FeedbackWidgetConfig;
   if (!config || !config.apiUrl) {
     console.warn('[FeedbackWidget] Geen geldige window.FeedbackWidgetConfig gevonden. Widget wordt niet geladen.');
     return;
   }
+
+  // Haal siteTagId op uit mapping (hostname zonder www)
+  const hostname = window.location.hostname.replace(/^www\./, '');
+  const siteTagId = SITE_TAGS[hostname] || '';
 
   // ─── Styles ──────────────────────────────────────────────────────────────────
   const STYLE = `
@@ -357,8 +371,8 @@
         boardId:        config.boardId        || '',
         statusId:       config.statusId       || '',
         ownerUid:       config.ownerUid       || '',
-        siteTagId:      config.siteTagId      || '',
-        sourceSiteName: config.sourceSiteName || window.location.origin,
+        siteTagId:      siteTagId,
+        sourceSiteName: config.sourceSiteName || window.location.hostname,
         pageOrigin:     window.location.origin,
         pageUrl:        window.location.href,
         browserOs:      navigator.userAgent,

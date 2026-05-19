@@ -108,7 +108,7 @@ app.post('/', async (req, res) => {
     await db.collection('workflowCards').add({
       boardId:     boardId  || 'XOhvgrJn3VYr7mR6vjsG',
       columnId:    statusId || 'NouTYAysQ5KsQkqGWXRx',
-      cardPage:    'Workflow',
+      cardPage:    null,
       cardColor:   null,
       title:       buildTitle(type, subject),
       description: buildDescription({ description, name, email, sourceSiteName, pageUrl, browserOs, resolution }),

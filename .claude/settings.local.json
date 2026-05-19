@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh auth *)",
+      "PowerShell(gh auth status 2>&1)",
+      "Bash(mkdir -p \"c:/Users/jonathan.daneels/Desktop/Websites/melding_to_kanban/functions\")",
+      "Bash(mkdir -p \"c:/Users/jonathan.daneels/Desktop/Websites/melding_to_kanban/.github/workflows\")",
+      "Bash(curl -s \"https://purge.jsdelivr.net/gh/daneelsjo/feedback-widget@main/widget.js\")",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
+    ]
+  }
+}

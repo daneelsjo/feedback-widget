@@ -40,11 +40,13 @@ jobs:
         run: npm ci
         working-directory: functions
 
-      # ── 5. Deployen naar Firebase Cloud Functions ─────────────────────────
+      # ── 5. firebase-tools installeren ─────────────────────────────────────
+      - name: Installeer firebase-tools
+        run: npm install -g firebase-tools
+
+      # ── 6. Deployen naar Firebase Cloud Functions ─────────────────────────
       - name: Deploy naar Firebase
-        uses: w9jds/firebase-action@v14.0.0
-        with:
-          args: deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: firebase deploy --only functions --project ${{ secrets.FIREBASE_PROJECT_ID }}
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 

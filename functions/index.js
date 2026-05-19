@@ -1,17 +1,12 @@
 'use strict';
 
-const { onRequest } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
+const functions = require('firebase-functions');
 const admin  = require('firebase-admin');
 const express = require('express');
 const cors   = require('cors');
 const multer = require('multer');
 const path   = require('path');
 const { v4: uuidv4 } = require('uuid');
-
-// ─── Secrets ─────────────────────────────────────────────────────────────────
-const validApiKeysSecret = defineSecret('VALID_API_KEYS');
-const priveJoSaKeySecret  = defineSecret('PRIVE_JO_SA_KEY');
 
 // ─── Firebase initialisatie ───────────────────────────────────────────────────
 // Standaard app: feedback-widget-f0087 → Storage (bijlagen)
@@ -134,12 +129,8 @@ app.post('/', upload.single('attachment'), async (req, res) => {
   }
 });
 
-// ─── Cloud Function export ────────────────────────────────────────────────────
-exports.feedbackApi = onRequest(
-  {
-    secrets: [validApiKeysSecret, priveJoSaKeySecret],
-    region: 'europe-west1',
-    cors: true,
-  },
-  app,
-);
+// ─── Cloud Function export (Gen 1) ───────────────────────────────────────────
+exports.feedbackApi = functions
+  .region('europe-west1')
+  .runWith({ secrets: ['VALID_API_KEYS', 'PRIVE_JO_SA_KEY'] })
+  .https.onRequest(app);

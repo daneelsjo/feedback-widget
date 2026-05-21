@@ -314,6 +314,7 @@
       this._submitBtn      = this._shadow.getElementById('submitBtn');
       this._panelBody      = this._shadow.getElementById('panelBody');
       this._errorContainer = this._shadow.getElementById('errorContainer');
+      this._formHTML       = this._panelBody.innerHTML;
 
       this._triggerBtn.addEventListener('click', () => this._toggle());
       this._closeBtn.addEventListener('click',   () => this._close());
@@ -327,6 +328,7 @@
     _toggle() { this._isOpen ? this._close() : this._openPanel(); }
 
     _openPanel() {
+      this._resetForm();
       this._isOpen = true;
       this._panel.classList.add('open');
       this._panel.setAttribute('aria-hidden', 'false');
@@ -428,8 +430,18 @@
           </div>
           <p class="success-title">Bedankt voor je feedback!</p>
           <p class="success-text">We hebben je bericht goed ontvangen en nemen het zo snel mogelijk in behandeling.</p>
+          <button class="submit-btn" id="newReportBtn" style="margin-top:20px;">Nieuwe melding indienen</button>
         </div>
       `;
+      this._shadow.getElementById('newReportBtn').addEventListener('click', () => this._resetForm());
+    }
+
+    _resetForm() {
+      this._panelBody.innerHTML    = this._formHTML;
+      this._form           = this._shadow.getElementById('feedbackForm');
+      this._submitBtn      = this._shadow.getElementById('submitBtn');
+      this._errorContainer = this._shadow.getElementById('errorContainer');
+      this._form.addEventListener('submit', (e) => this._submit(e));
     }
   }
 

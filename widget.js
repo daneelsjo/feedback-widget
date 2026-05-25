@@ -227,6 +227,7 @@
     }
     .success-title { font-size: 17px; font-weight: 600; color: #111827; margin-bottom: 8px; }
     .success-text  { color: #6b7280; font-size: 13.5px; line-height: 1.6; }
+    .new-report-btn { margin-top: 20px; }
   `;
 
   // ─── HTML template ────────────────────────────────────────────────────────────
@@ -304,8 +305,12 @@
 
     connectedCallback() {
       const root = document.createElement('div');
-      root.innerHTML = `<style>${STYLE}</style>${TEMPLATE}`;
+      root.innerHTML = TEMPLATE;
       this._shadow.appendChild(root);
+
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(STYLE);
+      this._shadow.adoptedStyleSheets = [sheet];
 
       this._panel          = this._shadow.getElementById('panel');
       this._triggerBtn     = this._shadow.getElementById('triggerBtn');
@@ -430,7 +435,7 @@
           </div>
           <p class="success-title">Bedankt voor je feedback!</p>
           <p class="success-text">We hebben je bericht goed ontvangen en nemen het zo snel mogelijk in behandeling.</p>
-          <button class="submit-btn" id="newReportBtn" style="margin-top:20px;">Nieuwe melding indienen</button>
+          <button class="submit-btn new-report-btn" id="newReportBtn">Nieuwe melding indienen</button>
         </div>
       `;
       this._shadow.getElementById('newReportBtn').addEventListener('click', () => this._resetForm());

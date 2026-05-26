@@ -37,11 +37,12 @@ const TYPE_IDS = {
   bug:         'MEIipj89qLCIdKNcun28',
   feature:     'YKK54Dw5nureM74oat4q',
   improvement: 'gmlEYp5mzuhs4dATwhaB',
+  task:        'R72KgziplDiwhcsfMfXN',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function buildTitle(type, subject) {
-  const labels = { bug: 'Bug', improvement: 'Verbetering', feature: 'Feature' };
+  const labels = { bug: 'Bug', improvement: 'Verbetering', feature: 'Feature', task: 'Taak' };
   return `[${labels[type] || 'Feedback'}] ${subject}`;
 }
 
@@ -89,7 +90,7 @@ app.post('/', async (req, res) => {
   if (missing.length) {
     return res.status(400).json({ message: `Verplichte velden ontbreken: ${missing.join(', ')}.` });
   }
-  if (!['bug','improvement','feature'].includes(type)) {
+  if (!['bug','improvement','feature','task'].includes(type)) {
     return res.status(400).json({ message: 'Ongeldig type.' });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

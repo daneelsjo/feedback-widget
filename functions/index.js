@@ -83,7 +83,7 @@ app.post('/', async (req, res) => {
   }
 
   const { type, subject, name, email, description, boardId, statusId,
-          ownerUid, siteTagId, sourceSiteName, pageUrl, browserOs, resolution } = body;
+          ownerUid, siteTagId, recurrence, sourceSiteName, pageUrl, browserOs, resolution } = body;
 
   // Validatie
   const missing = ['type','subject','name','email','description'].filter(f => !body[f]);
@@ -106,7 +106,7 @@ app.post('/', async (req, res) => {
     // Tags: typeId altijd, siteTagId enkel als meegegeven
     const tags = siteTagId ? [typeId, siteTagId] : [typeId];
 
-    await db.collection('workflowCards').add({
+    const card = {
       boardId:     boardId  || 'XOhvgrJn3VYr7mR6vjsG',
       columnId:    statusId || 'NouTYAysQ5KsQkqGWXRx',
       cardPage:    null,
@@ -124,7 +124,10 @@ app.post('/', async (req, res) => {
       logs:        [],
       createdAt:   now,
       updatedAt:   now,
-    });
+    };
+    if (recurrence) card.recurrence = recurrence;
+
+    await db.collection('workflowCards').add(card);
 
     return res.status(201).json({ message: 'Feedback succesvol ontvangen.' });
   } catch (err) {
